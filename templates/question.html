@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}سؤال {{ q_num }}{% endblock %}
+
+{% block content %}
+<div class="question-header">
+    <div class="question-meta">
+        <span>📊 المستوى {{ level }}</span>
+        <span>❓ السؤال {{ q_num }} / {{ total }}</span>
+        <span>🎯 {{ score }} نقطة</span>
+        <span class="lives-display">
+            {% for i in range(lives) %}❤️{% endfor %}
+            {% for i in range(3 - lives) %}🖤{% endfor %}
+        </span>
+    </div>
+    <div class="progress-bar-wrap">
+        <div class="progress-bar" style="width: {{ (q_num / total * 100)|int }}%"></div>
+    </div>
+</div>
+
+{% if feedback %}
+<div class="feedback-box feedback-{{ feedback.type }}">
+    <p class="feedback-msg">{{ feedback.message }}</p>
+    <p class="feedback-exp">{{ feedback.explanation }}</p>
+</div>
+{% endif %}
+
+<div class="question-card">
+    <div class="sentence-display">{{ question.sentence }}</div>
+    <h3 class="question-text">{{ question.question }}</h3>
+
+    <form action="{{ url_for('answer') }}" method="POST">
+
+        {% if question.type == 'multiple_choice' %}
+        <div class="options-list">
+            {% for i, opt in enumerate(question.options) %}
+            <label class="option-label">
+                <input type="radio" name="option" value="{{ i }}" required>
+                <span>{{ opt }}</span>
+            </label>
+            {% endfor %}
+        </div>
+
+        {% elif question.type == 'correct_sentence' %}
+        <div class="correction-area">
+            <label>اكتب التصحيح:</label>
+            <input type="text" name="correction" class="text-input" 
+                   placeholder="اكتب الجملة الصحيحة هنا..." required
+                   dir="rtl" autocomplete="off">
+        </div>
+
+        {% elif question.type == 'identify_elements' %}
+        <div class="options-list">
+            {% for el in question.elements %}
+            <label class="option-label">
+                <input type="radio" name="element" value="{{ el }}" required>
+                <span>{{ el }}</span>
+            </label>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-large">✅ تحقق من الإجابة</button>
+        </div>
+    </form>
+
+    <details class="hint-box">
+        <summary>💡 عرض التلميح</summary>
+        <p>{{ question.hint }}</p>
+    </details>
+</div>
+
+<div class="text-center mt-2">
+    <a href="{{ url_for('levels') }}" class="btn btn-outline btn-sm">← العودة للمستويات</a>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<script>
+// Jinja2 doesn't have enumerate built-in, so we handle it via a workaround
+</script>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}اختر مستوى{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>اختر مستوى</h2>
+    <p class="subtitle">🎯 النقاط: {{ score }} &nbsp;|&nbsp; ❤️ القلوب: {{ lives }}</p>
+</div>
+
+<div class="levels-grid">
+    {% for level in [1, 2, 3] %}
+    <div class="level-card {% if level > levels_unlocked %}locked{% endif %}">
+        {% if level > levels_unlocked %}
+            <div class="level-icon">🔒</div>
+            <h3>المستوى {{ level }}</h3>
+            <p class="level-desc">
+                {% if level == 2 %}الأفعال الناقصة والحروف الناسخة{% elif level == 3 %}أساليب اللغة المتقدمة{% endif %}
+            </p>
+            <span class="badge badge-locked">مقفل</span>
+        {% else %}
+            <div class="level-icon">
+                {% if level == 1 %}🌱{% elif level == 2 %}🌿{% else %}🌳{% endif %}
+            </div>
+            <h3>المستوى {{ level }}</h3>
+            <p class="level-desc">
+                {% if level == 1 %}المبتدأ والخبر، الفاعل والمفعول به
+                {% elif level == 2 %}الأفعال الناقصة والحروف الناسخة
+                {% else %}أساليب اللغة المتقدمة{% endif %}
+            </p>
+            <a href="{{ url_for('start_level', level=level) }}" class="btn btn-primary">
+                ابدأ المستوى {{ level }} 🎯
+            </a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<div class="text-center mt-3">
+    <a href="{{ url_for('index') }}" class="btn btn-outline">← العودة للرئيسية</a>
+</div>
+{% endblock %}

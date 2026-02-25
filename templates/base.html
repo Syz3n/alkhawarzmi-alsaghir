@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}الخوارزمي الصغير{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <span class="nav-brand">📚 الخوارزمي الصغير</span>
+        <div class="nav-links">
+            <a href="{{ url_for('index') }}">الرئيسية</a>
+            <a href="{{ url_for('leaderboard') }}">🏆 المتصدرون</a>
+            <a href="{{ url_for('space') }}">🚀 لعبة الفضاء</a>
+
+        </div>
+    </nav>
+
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for cat, msg in messages %}
+                    <div class="alert alert-{{ cat }}">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>الخوارزمي الصغير - لعبة تعليم النحو العربي &copy; 2025</p>
+    </footer>
+
+    <div id="cheat-toast" style="
+        display:none; position:fixed; bottom:30px; left:50%; transform:translateX(-50%);
+        background:#2c5530; color:#fff; padding:14px 28px; border-radius:12px;
+        font-size:1rem; font-weight:bold; z-index:9999; box-shadow:0 4px 20px rgba(0,0,0,0.3);
+    "></div>
+
+    <script>
+    (function() {
+        const CODES = {
+            'SPACE2': { level: 2, msg: '🔓 تم فتح المستوى الثاني!' },
+            'SPACE3': { level: 3, msg: '🔓 تم فتح جميع المستويات!' },
+            'RESET1': { level: 0, msg: '🔒 تم إعادة تعيين اللعبة!' },
+        };
+        let typed = '';
+        document.addEventListener('keydown', function(e) {
+            // Only track letter/number keys, ignore Enter, Shift, etc.
+            if (e.key.length === 1) typed += e.key.toUpperCase();
+            if (typed.length > 6) typed = typed.slice(-6);
+            for (const [code, data] of Object.entries(CODES)) {
+                if (typed.endsWith(code)) {
+                    fetch('/cheat/' + data.level)
+                        .then(r => r.json())
+                        .then(res => {
+                            const toast = document.getElementById('cheat-toast');
+                            toast.textContent = res.ok ? data.msg : '❌ الكود لا يعمل هنا';
+                            toast.style.display = 'block';
+                            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+                        });
+                    typed = '';
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

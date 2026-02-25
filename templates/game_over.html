@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}نهاية اللعبة{% endblock %}
+
+{% block content %}
+<div class="result-page game-over-page">
+    <div class="result-icon">💔</div>
+    <h2>انتهت اللعبة</h2>
+    <p class="result-subtitle">نفدت القلوب! لكن لا تستسلم</p>
+
+    <div class="score-display">
+        <span class="score-big">{{ score }}</span>
+        <span class="score-label">نقطة نهائية</span>
+    </div>
+
+    <div class="result-actions">
+        <a href="{{ url_for('levels') }}" class="btn btn-primary btn-large">🔄 العب مجدداً</a>
+        <a href="{{ url_for('index') }}" class="btn btn-outline btn-large">القائمة الرئيسية</a>
+    </div>
+</div>
+{% endblock %}

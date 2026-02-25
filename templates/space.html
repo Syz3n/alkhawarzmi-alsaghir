@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}🚀 لعبة الفضاء{% endblock %}
+
+{% block content %}
+<div class="space-game-wrapper">
+    <div class="space-header">
+        <h2>🚀 لعبة الفضاء التعليمية</h2>
+        <p>اجمع الجمل الصحيحة ✅ وتجنب الجمل الخاطئة ❌</p>
+    </div>
+
+    <div class="space-hud">
+        <span id="hud-score">🎯 النقاط: 0</span>
+        <span id="hud-lives">❤️❤️❤️</span>
+        <span id="hud-level">📊 المستوى: 1</span>
+    </div>
+
+    <div class="canvas-wrap">
+        <canvas id="gameCanvas" width="800" height="480"></canvas>
+        <div id="overlay" class="game-overlay">
+            <div class="overlay-content">
+                <h3 id="overlay-title">لعبة الفضاء</h3>
+                <p id="overlay-msg">استخدم أزرار الأسهم أو W A S D للتحرك بالمركبة<br>اجمع الجمل الصحيحة وتجنب الخاطئة!</p>
+                <button id="startBtn" class="btn btn-primary btn-large" onclick="startGame()">🎮 بدء اللعب</button>
+                <a href="{{ url_for('index') }}" class="btn btn-outline btn-large">← العودة</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification" class="space-notification"></div>
+
+    <div class="space-controls-hint">
+        <span>⬅️ ➡️ ⬆️ ⬇️ أو W A S D للتحرك</span>
+    </div>
+</div>
+
+<script>
+const CORRECT = {{ correct_sentences|safe }};
+const INCORRECT = {{ incorrect_sentences|safe }};
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let gameRunning = false;
+let score = 0, lives = 3, level = 1;
+let playerX = 390, playerY = 400;
+let sentences = [];
+let stars = [];
+let sentenceSpeed = 2;
+let keys = {};
+let animFrame;
+let notifTimeout;
+
+// Generate static stars
+function genStars() {
+    stars = [];
+    for (let i = 0; i < 80; i++) {
+        stars.push({
+            x: Math.random() * 800,
+            y: Math.random() * 480,
+            r: Math.random() * 1.5 + 0.5,
+            a: Math.random()
+        });
+    }
+}
+
+function drawBackground() {
+    ctx.fillStyle = '#000820';
+    ctx.fillRect(0, 0, 800, 480);
+    stars.forEach(s => {
+        ctx.globalAlpha = 0.4 + s.a * 0.6;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+}
+
+function drawShip(x, y) {
+    // Main body
+    ctx.fillStyle = '#00aaff';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 22);
+    ctx.lineTo(x - 14, y + 18);
+    ctx.lineTo(x + 14, y + 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Cockpit
+    ctx.fillStyle = '#00ffff';
+    ctx.beginPath();
+    ctx.ellipse(x, y - 5, 5, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Flames
+    ctx.fillStyle = '#ff6600';
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.moveTo(x - 10, y + 18); ctx.lineTo(x - 5, y + 30); ctx.lineTo(x, y + 18);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x, y + 18); ctx.lineTo(x + 5, y + 30); ctx.lineTo(x + 10, y + 18);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+}
+
+function drawSentence(s) {
+    ctx.save();
+    ctx.font = 'bold 13px Arial';
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'center';
+    const maxW = 220;
+    // Background pill
+    const metrics = ctx.measureText(s.text);
+    const w = Math.min(metrics.width + 20, maxW + 20);
+    const h = 30;
+    ctx.fillStyle = s.type === 'correct'
+        ? 'rgba(0, 180, 80, 0.85)'
+        : 'rgba(200, 30, 30, 0.85)';
+    ctx.beginPath();
+    ctx.roundRect(s.x - w / 2, s.y - h / 2, w, h, 8);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(s.text, s.x, s.y + 5, maxW);
+    ctx.restore();
+}
+
+function spawnSentence() {
+    const isCorrect = Math.random() < 0.5;
+    const pool = isCorrect ? CORRECT : INCORRECT;
+    const text = pool[Math.floor(Math.random() * pool.length)];
+    sentences.push({
+        text,
+        type: isCorrect ? 'correct' : 'incorrect',
+        x: 60 + Math.random() * 680,
+        y: -30,
+        speed: sentenceSpeed + (Math.random() - 0.5) * 0.8
+    });
+}
+
+function updateHUD() {
+    document.getElementById('hud-score').textContent = `🎯 النقاط: ${score}`;
+    document.getElementById('hud-lives').textContent = '❤️'.repeat(lives) + '🖤'.repeat(Math.max(0, 3 - lives));
+    document.getElementById('hud-level').textContent = `📊 المستوى: ${level}`;
+}
+
+function showNotif(msg, color) {
+    const el = document.getElementById('notification');
+    el.textContent = msg;
+    el.style.color = color;
+    el.style.opacity = 1;
+    clearTimeout(notifTimeout);
+    notifTimeout = setTimeout(() => { el.style.opacity = 0; }, 2200);
+}
+
+function checkCollisions() {
+    for (let i = sentences.length - 1; i >= 0; i--) {
+        const s = sentences[i];
+        const dist = Math.hypot(s.x - playerX, s.y - playerY);
+        if (dist < 38) {
+            if (s.type === 'correct') {
+                score += 10;
+                showNotif(`🎉 +10 نقطة! جملة صحيحة`, '#00ff88');
+                if (score % 50 === 0 && score > 0) {
+                    sentenceSpeed += 0.4;
+                    level = Math.floor(score / 50) + 1;
+                    showNotif(`📈 المستوى ${level}! السرعة زادت`, '#ffff00');
+                }
+            } else {
+                lives--;
+                showNotif(`💔 جملة خاطئة! -قلب`, '#ff4444');
+                if (lives <= 0) {
+                    endGame();
+                    return;
+                }
+            }
+            sentences.splice(i, 1);
+            updateHUD();
+        }
+    }
+}
+
+function gameLoop() {
+    if (!gameRunning) return;
+
+    // Move player
+    const spd = 4;
+    if ((keys['ArrowLeft'] || keys['a']) && playerX > 30) playerX -= spd;
+    if ((keys['ArrowRight'] || keys['d']) && playerX < 770) playerX += spd;
+    if ((keys['ArrowUp'] || keys['w']) && playerY > 50) playerY -= spd;
+    if ((keys['ArrowDown'] || keys['s']) && playerY < 460) playerY += spd;
+
+    // Spawn
+    if (Math.random() < 0.018) spawnSentence();
+
+    // Update sentences
+    sentences = sentences.filter(s => s.y < 530);
+    sentences.forEach(s => s.y += s.speed);
+
+    // Draw
+    drawBackground();
+    sentences.forEach(drawSentence);
+    drawShip(playerX, playerY);
+
+    checkCollisions();
+
+    animFrame = requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+    score = 0; lives = 3; level = 1;
+    playerX = 390; playerY = 400;
+    sentences = [];
+    sentenceSpeed = 2;
+    gameRunning = true;
+    document.getElementById('overlay').style.display = 'none';
+    updateHUD();
+    genStars();
+    gameLoop();
+}
+
+function endGame() {
+    gameRunning = false;
+    cancelAnimationFrame(animFrame);
+    drawBackground();
+    sentences.forEach(drawSentence);
+    drawShip(playerX, playerY);
+
+    const ov = document.getElementById('overlay');
+    document.getElementById('overlay-title').textContent = '💔 انتهت اللعبة';
+    document.getElementById('overlay-msg').textContent = `النقاط النهائية: ${score}`;
+    document.getElementById('startBtn').textContent = '🔄 العب مجدداً';
+    ov.style.display = 'flex';
+}
+
+// Keyboard listeners
+document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    // Prevent page scroll with arrow keys during game
+    if (gameRunning && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+    }
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// Initial draw
+genStars();
+drawBackground();
+drawShip(playerX, playerY);
+
+// Mobile touch controls (optional buttons)
+</script>
+{% endblock %}

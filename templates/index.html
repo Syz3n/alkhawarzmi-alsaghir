@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}الخوارزمي الصغير - الرئيسية{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1 class="hero-title">الخوارزمي الصغير</h1>
+    <p class="hero-subtitle">لعبة تعليم النحو العربي</p>
+
+    {% if feedback %}
+    <div class="alert alert-{{ 'success' if feedback.type == 'correct' else 'danger' }}">
+        {{ feedback.message }}
+    </div>
+    {% endif %}
+
+    <div class="stats-bar">
+        <span>🎯 النقاط: <strong>{{ score }}</strong></span>
+        <span>❤️ القلوب: <strong>{{ lives }}</strong></span>
+        <span>🔓 المستويات المفتوحة: <strong>{{ levels_unlocked }}/3</strong></span>
+    </div>
+
+    <div class="menu-buttons">
+        <a href="{{ url_for('levels') }}" class="btn btn-primary btn-large">
+            🎮 ابدأ اللعب
+        </a>
+        <a href="{{ url_for('space') }}" class="btn btn-secondary btn-large">
+            🚀 لعبة الفضاء
+        </a>
+        <a href="{{ url_for('leaderboard') }}" class="btn btn-accent btn-large">
+            🏆 لوحة المتصدرين
+        </a>
+    </div>
+
+    <div class="info-cards">
+        <div class="card">
+            <div class="card-icon">📖</div>
+            <h3>تعلم النحو</h3>
+            <p>أسئلة متنوعة في الإعراب والجمل العربية</p>
+        </div>
+        <div class="card">
+            <div class="card-icon">🚀</div>
+            <h3>لعبة الفضاء</h3>
+            <p>تنقل بمركبتك وجمع الجمل الصحيحة</p>
+        </div>
+        <div class="card">
+            <div class="card-icon">🏆</div>
+            <h3>تنافس</h3>
+            <p>تصاعد في المستويات وتصدر القائمة</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

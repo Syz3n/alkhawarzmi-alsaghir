@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}لوحة المتصدرين{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>🏆 لوحة المتصدرين</h2>
+</div>
+
+<div class="leaderboard-table-wrap">
+    <table class="leaderboard-table">
+        <thead>
+            <tr>
+                <th>المركز</th>
+                <th>الاسم</th>
+                <th>النقاط</th>
+                <th>المستوى</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for i, leader in enumerate(leaders) %}
+            <tr class="{% if leader.name == 'أنت' %}highlight-row{% endif %}">
+                <td>
+                    {% if i == 0 %}🥇
+                    {% elif i == 1 %}🥈
+                    {% elif i == 2 %}🥉
+                    {% else %}{{ i + 1 }}{% endif %}
+                </td>
+                <td>{{ leader.name }}</td>
+                <td><strong>{{ leader.score }}</strong></td>
+                <td>{{ leader.level }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="text-center mt-3">
+    <a href="{{ url_for('index') }}" class="btn btn-outline">← العودة للرئيسية</a>
+</div>
+{% endblock %}
