@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}الخوارزمي الصغير{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <a class="nav-brand" href="{{ url_for('index') }}">
+            الخوارزمي الصغير
+            <span class="nav-uae">الإمارات العربية المتحدة</span>
+        </a>
+        <div class="nav-links">
+            <a href="{{ url_for('index') }}">الرئيسية</a>
+            <a href="{{ url_for('levels') }}">المستويات</a>
+            <a href="{{ url_for('leaderboard') }}">المتصدرون</a>
+            <a href="{{ url_for('space') }}">لعبة الفضاء</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for cat, msg in messages %}
+                    <div class="alert alert-{{ cat }}">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <div id="cheat-toast" style="
+        display:none; position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+        background:#fff; color:#2a6040; padding:11px 22px; border-radius:8px;
+        font-size:0.88rem; font-weight:700; z-index:9999;
+        border:1px solid #dde8e2; box-shadow:0 4px 16px rgba(0,0,0,0.1);
+        font-family:'Cairo',sans-serif;
+    "></div>
+
+    <script>
+    (function() {
+        const CODES = {
+            'SPACE2': { level: 2, msg: '🔓 تم فتح المستوى الثاني!' },
+            'SPACE3': { level: 3, msg: '🔓 تم فتح جميع المستويات!' },
+            'RESET1': { level: 0, msg: '🔒 تم إعادة تعيين اللعبة!' },
+        };
+        let typed = '';
+        document.addEventListener('keydown', function(e) {
+            if (e.key.length === 1) typed += e.key.toUpperCase();
+            if (typed.length > 6) typed = typed.slice(-6);
+            for (const [code, data] of Object.entries(CODES)) {
+                if (typed.endsWith(code)) {
+                    fetch('/cheat/' + data.level)
+                        .then(r => r.json())
+                        .then(res => {
+                            const t = document.getElementById('cheat-toast');
+                            t.textContent = res.ok ? data.msg : '❌ لم ينجح';
+                            t.style.display = 'block';
+                            setTimeout(() => t.style.display = 'none', 2800);
+                        });
+                    typed = '';
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

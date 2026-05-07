@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}مبروك!{% endblock %}
+
+{% block content %}
+<div class="result-page">
+    <span class="result-icon">🎊</span>
+    <h2>أحسنت!</h2>
+    <p class="result-subtitle">أتممت المستوى {{ level }} بنجاح</p>
+    <div class="score-display">
+        <span class="score-big">{{ score }}</span>
+        <span class="score-label">نقطة</span>
+    </div>
+    <div class="result-actions">
+        {% if has_next %}
+        <a href="{{ url_for('start_level', level=level + 1) }}" class="btn btn-primary btn-large">المستوى التالي ←</a>
+        {% endif %}
+        <a href="{{ url_for('levels') }}" class="btn btn-outline btn-large">المستويات</a>
+    </div>
+</div>
+{% endblock %}

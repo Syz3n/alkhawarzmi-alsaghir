@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}الخوارزمي الصغير{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <p class="hero-eyebrow">تعليم النحو العربي · الإمارات العربية المتحدة</p>
+    <h1 class="hero-title">الخوارزمي <em>الصغير</em></h1>
+    <p class="hero-sub">تعلّم قواعد اللغة العربية من خلال الألعاب التفاعلية</p>
+
+    <div class="hero-actions">
+        <a href="{{ url_for('levels') }}" class="btn btn-primary btn-large">ابدأ المستويات</a>
+        <a href="{{ url_for('space') }}" class="btn btn-gold btn-large">لعبة الفضاء</a>
+        <a href="{{ url_for('leaderboard') }}" class="btn btn-outline btn-large">المتصدرون</a>
+    </div>
+
+    <div class="divider-ornament">✦</div>
+
+    <div class="feature-tiles">
+        <div class="tile">
+            <div class="tile-icon">📖</div>
+            <h3>أسئلة النحو</h3>
+            <p>ثلاثة مستويات من الإعراب والجمل العربية</p>
+        </div>
+        <div class="tile">
+            <div class="tile-icon">🚀</div>
+            <h3>لعبة الفضاء</h3>
+            <p>وضعان: جمع الجمل الصحيحة أو معركة المركبات</p>
+        </div>
+        <div class="tile">
+            <div class="tile-icon">🏆</div>
+            <h3>التصنيف</h3>
+            <p>تنافس وتصدّر لوحة المتصدرين</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,587 @@
+{% extends "base.html" %}
+{% block title %}لعبة الفضاء{% endblock %}
+
+{% block content %}
+<div class="space-game-wrapper">
+    <div class="space-header">
+        <h2>لعبة الفضاء التعليمية</h2>
+        <p>اختر وضع اللعب وانطلق في رحلتك</p>
+    </div>
+
+    <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-collect" onclick="switchMode('collect')">🌌 جمع الجمل</button>
+        <button class="mode-tab" id="tab-shooter" onclick="switchMode('shooter')">🛸 وضع المعركة</button>
+    </div>
+
+    <div class="space-hud">
+        <span id="hud-score">🎯 النقاط: 0</span>
+        <span id="hud-lives">❤️❤️❤️</span>
+        <span id="hud-bullets" style="display:none">🔫 الرصاصات: 10</span>
+    </div>
+
+    <div id="reveal-wrap" style="margin-bottom:6px">
+        <button class="reveal-toggle" id="revealToggle" onclick="toggleReveal()">
+            <span class="toggle-dot"></span>
+            كشف الألوان
+        </button>
+    </div>
+
+    <div style="display:flex;gap:24px;justify-content:center;margin-bottom:8px;flex-wrap:wrap;">
+        <label style="font-size:0.82rem;color:var(--muted);display:flex;align-items:center;gap:8px;">
+            🚀 سرعة السفينة:
+            <input type="range" id="shipSpeedSlider" min="1" max="10" value="5" step="0.5"
+                style="width:100px;accent-color:var(--green);cursor:pointer;"
+                oninput="shipSpeedMult = this.value/5; document.getElementById('shipSpeedVal').textContent=this.value">
+            <span id="shipSpeedVal" style="font-weight:700;color:var(--green);min-width:18px;">5</span>
+        </label>
+        <label style="font-size:0.82rem;color:var(--muted);display:flex;align-items:center;gap:8px;">
+            🪐 سرعة الكتل:
+            <input type="range" id="blockSpeedSlider" min="1" max="10" value="5" step="0.5"
+                style="width:100px;accent-color:var(--green);cursor:pointer;"
+                oninput="blockSpeedMult = this.value/5; document.getElementById('blockSpeedVal').textContent=this.value">
+            <span id="blockSpeedVal" style="font-weight:700;color:var(--green);min-width:18px;">5</span>
+        </label>
+    </div>
+
+    <div class="canvas-wrap">
+        <canvas id="gameCanvas" width="800" height="480"></canvas>
+
+        <!-- Start/End overlay -->
+        <div id="overlay" class="game-overlay">
+            <div class="overlay-content">
+                <h3 id="overlay-title">لعبة الفضاء</h3>
+                <p id="overlay-msg">استخدم الأسهم أو WASD للتحرك<br>اجمع الجمل الصحيحة وتجنب الخاطئة!</p>
+                <button id="startBtn" class="btn btn-primary btn-large" onclick="startGame()">🚀 ابدأ اللعب</button>
+                <a href="{{ url_for('index') }}" class="btn btn-ghost btn-large">← العودة</a>
+            </div>
+        </div>
+
+        <!-- Quiz overlay for shooter mode -->
+        <div id="quizOverlay" class="quiz-overlay">
+            <div class="quiz-panel">
+                <h3>⚡ نفدت الرصاصات!</h3>
+                <p class="quiz-sub">أجب على الأسئلة لتعيد ملء ذخيرتك</p>
+                <p class="quiz-progress" id="quiz-progress">السؤال 1 / 10</p>
+                <div class="quiz-sentence" id="quiz-sentence"></div>
+                <div class="quiz-question" id="quiz-question"></div>
+                <div class="quiz-options" id="quiz-options"></div>
+                <div class="quiz-result-msg" id="quiz-result-msg"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification" class="space-notification"></div>
+    <div class="space-controls-hint">⬅️ ➡️ ⬆️ ⬇️ أو W A S D &nbsp;·&nbsp; مسافة للإطلاق (وضع المعركة)</div>
+</div>
+
+<script>
+// ─── Data from Flask ──────────────────────────────────────────────────────────
+const CORRECT   = {{ correct_sentences|safe }};
+const INCORRECT = {{ incorrect_sentences|safe }};
+const ALL_QUESTIONS = {{ all_questions|safe }};
+
+// ─── Canvas setup ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let mode        = 'collect';   // 'collect' | 'shooter'
+let gameRunning = false;
+let revealMode  = false;
+let score = 0, lives = 3, gameLevel = 1;
+let bullets = 10;
+let playerX = 390, playerY = 400;
+let playerAngle = 0;           // shooter mode rotation
+let sentences   = [];
+let enemies     = [];
+let projectiles = [];
+let stars       = [];
+let sentenceSpeed = 2;
+let keys = {};
+let animFrame, notifTimeout;
+
+// Speed multipliers (controlled by sliders)
+let shipSpeedMult  = 1.0;
+let blockSpeedMult = 1.0;
+
+// Time-based acceleration (Subway Surfers style)
+let gameStartTime  = 0;
+let timeMult       = 1.0;   // grows over time
+
+// Quiz state (shooter)
+let quizPool       = [];
+let quizIndex      = 0;
+let quizCorrect    = 0;
+let quizAnswered   = false;
+
+// ─── Mode switching ───────────────────────────────────────────────────────────
+function switchMode(m) {
+    if (gameRunning) return;
+    mode = m;
+    document.getElementById('tab-collect').classList.toggle('active', m === 'collect');
+    document.getElementById('tab-shooter').classList.toggle('active', m === 'shooter');
+    document.getElementById('hud-lives').style.display   = m === 'collect' ? '' : 'none';
+    document.getElementById('hud-bullets').style.display = m === 'shooter' ? '' : 'none';
+    document.getElementById('reveal-wrap').style.display = m === 'collect' ? '' : 'none';
+
+    const msgs = {
+        collect: 'استخدم الأسهم أو WASD للتحرك<br>اجمع الجمل الصحيحة وتجنب الخاطئة!',
+        shooter: 'استخدم الأسهم أو WASD للتحرك<br>اضغط المسافة لإطلاق النار على المركبات المعادية'
+    };
+    document.getElementById('overlay-msg').innerHTML = msgs[m];
+    showOverlay('لعبة الفضاء', msgs[m]);
+
+    genStars();
+    drawScene();
+}
+
+// ─── Stars ────────────────────────────────────────────────────────────────────
+function genStars() {
+    stars = Array.from({length: 90}, () => ({
+        x: Math.random() * 800, y: Math.random() * 480,
+        r: Math.random() * 1.4 + 0.3,
+        t: Math.random() * Math.PI * 2,
+        sp: 0.005 + Math.random() * 0.01
+    }));
+}
+
+function drawBg() {
+    // Deep space gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, 480);
+    grad.addColorStop(0, '#040c07');
+    grad.addColorStop(1, '#07160d');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 800, 480);
+
+    // Subtle UAE-green nebula glow top-right
+    const nebula = ctx.createRadialGradient(680, 80, 0, 680, 80, 200);
+    nebula.addColorStop(0, 'rgba(0,80,30,0.06)');
+    nebula.addColorStop(1, 'transparent');
+    ctx.fillStyle = nebula;
+    ctx.fillRect(0, 0, 800, 480);
+
+    // Stars
+    stars.forEach(s => {
+        s.t += s.sp;
+        const alpha = 0.35 + Math.sin(s.t) * 0.3;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#e4d8b0';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+}
+
+// ─── Player ship (UAE colours: white hull, green trim, red accent) ────────────
+function drawShip(x, y, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    if (angle) ctx.rotate(angle);
+
+    // Flame
+    ctx.fillStyle = '#ff6600';
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-9, 18); ctx.lineTo(-4, 30); ctx.lineTo(0, 18);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(0, 18);  ctx.lineTo(4, 30);  ctx.lineTo(9, 18);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Wings — UAE green
+    ctx.fillStyle = '#006633';
+    ctx.beginPath();
+    ctx.moveTo(0, -22); ctx.lineTo(-22, 16); ctx.lineTo(-8, 10);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(0, -22); ctx.lineTo(22, 16);  ctx.lineTo(8, 10);
+    ctx.closePath(); ctx.fill();
+
+    // Body — white
+    ctx.fillStyle = '#f0ece0';
+    ctx.strokeStyle = '#c8a84b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -22); ctx.lineTo(-8, 16); ctx.lineTo(8, 16);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    // Cockpit — UAE red tint
+    ctx.fillStyle = '#cc2233';
+    ctx.globalAlpha = 0.75;
+    ctx.beginPath();
+    ctx.ellipse(0, -6, 4, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+}
+
+// ─── Enemy ship (shooter mode) ───────────────────────────────────────────────
+function drawEnemy(e) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(Math.PI); // pointing down
+
+    ctx.fillStyle = '#4a1a00';
+    ctx.strokeStyle = '#ff6622';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, -14); ctx.lineTo(-12, 10); ctx.lineTo(12, 10);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#ff4400';
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 3, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Health bar
+    const hw = 24;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(-hw/2, 14, hw, 4);
+    ctx.fillStyle = '#ff4422';
+    ctx.fillRect(-hw/2, 14, hw * (e.hp / e.maxHp), 4);
+
+    ctx.restore();
+}
+
+// ─── Projectile ───────────────────────────────────────────────────────────────
+function drawProjectile(p) {
+    ctx.save();
+    ctx.fillStyle = '#e4cc82';
+    ctx.shadowColor = '#e4cc82';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, 3, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+}
+
+// ─── Sentence pill (collect mode) ────────────────────────────────────────────
+function drawSentence(s) {
+    ctx.save();
+    ctx.font = 'bold 12px Cairo, Arial';
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'center';
+    const maxW = 210;
+    const w = Math.min(ctx.measureText(s.text).width + 22, maxW + 22);
+    const h = 28;
+
+    let color;
+    if (revealMode) {
+        color = s.type === 'correct' ? 'rgba(0,120,60,0.88)' : 'rgba(160,20,30,0.88)';
+    } else {
+        color = 'rgba(25,60,40,0.82)';
+    }
+
+    ctx.fillStyle = color;
+    ctx.strokeStyle = revealMode
+        ? (s.type === 'correct' ? 'rgba(60,200,100,0.6)' : 'rgba(220,60,60,0.6)')
+        : 'rgba(200,168,75,0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(s.x - w/2, s.y - h/2, w, h, 7);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#f2ede0';
+    ctx.fillText(s.text, s.x, s.y + 5, maxW);
+    ctx.restore();
+}
+
+// ─── HUD update ──────────────────────────────────────────────────────────────
+function updateHUD() {
+    document.getElementById('hud-score').textContent = `🎯 ${score}`;
+    document.getElementById('hud-lives').textContent = '❤️'.repeat(lives) + '🖤'.repeat(Math.max(0, 3-lives));
+    document.getElementById('hud-bullets').textContent = `🔫 ${bullets}`;
+}
+
+function showNotif(msg, color) {
+    const el = document.getElementById('notification');
+    el.textContent = msg; el.style.color = color; el.style.opacity = 1;
+    clearTimeout(notifTimeout);
+    notifTimeout = setTimeout(() => el.style.opacity = 0, 2000);
+}
+
+// ─── COLLECT MODE logic ───────────────────────────────────────────────────────
+function spawnSentence() {
+    const isCorrect = Math.random() < 0.5;
+    const pool = isCorrect ? CORRECT : INCORRECT;
+    sentences.push({
+        text: pool[Math.floor(Math.random() * pool.length)],
+        type: isCorrect ? 'correct' : 'incorrect',
+        x: 55 + Math.random() * 690, y: -30,
+        speed: sentenceSpeed + (Math.random() - 0.5) * 0.7
+    });
+}
+
+function checkCollectCollisions() {
+    for (let i = sentences.length - 1; i >= 0; i--) {
+        const s = sentences[i];
+        if (Math.hypot(s.x - playerX, s.y - playerY) < 36) {
+            if (s.type === 'correct') {
+                score += 10;
+                showNotif('✦ +10 جملة صحيحة', '#80e8a8');
+                if (score % 60 === 0) { sentenceSpeed += 0.35; gameLevel++; showNotif(`المستوى ${gameLevel}`, '#e4cc82'); }
+            } else {
+                lives--;
+                showNotif('✦ جملة خاطئة -قلب', '#f4a0a8');
+                if (lives <= 0) { endGame(); return; }
+            }
+            sentences.splice(i, 1);
+            updateHUD();
+        }
+    }
+}
+
+// ─── SHOOTER MODE logic ───────────────────────────────────────────────────────
+function spawnEnemy() {
+    const hp = 1 + Math.floor(gameLevel / 3);
+    enemies.push({
+        x: 60 + Math.random() * 680, y: -30,
+        speed: 0.6 + Math.random() * 0.8 + gameLevel * 0.1,
+        hp, maxHp: hp,
+        wobble: Math.random() * Math.PI * 2,
+        wobbleSpeed: 0.02 + Math.random() * 0.02
+    });
+}
+
+function shoot() {
+    if (bullets <= 0 || !gameRunning) return;
+    bullets--;
+    projectiles.push({ x: playerX, y: playerY - 24, speed: 9 });
+    updateHUD();
+    if (bullets === 0) {
+        // Show a warning first, then fade in quiz after a short delay
+        showNotif('⚠️ نفدت الرصاصات! استعد للأسئلة...', '#e4cc82');
+        setTimeout(() => {
+            showNotif('', '');
+            startQuiz();
+        }, 1200);
+    }
+}
+
+function checkShooterCollisions() {
+    // Projectile vs enemy
+    for (let pi = projectiles.length - 1; pi >= 0; pi--) {
+        const p = projectiles[pi];
+        for (let ei = enemies.length - 1; ei >= 0; ei--) {
+            const e = enemies[ei];
+            if (Math.hypot(p.x - e.x, p.y - e.y) < 22) {
+                e.hp--;
+                projectiles.splice(pi, 1);
+                if (e.hp <= 0) {
+                    enemies.splice(ei, 1);
+                    score += 15;
+                    showNotif('✦ +15 عدو مدمّر', '#80e8a8');
+                    if (score % 75 === 0) { gameLevel++; showNotif(`المستوى ${gameLevel}`, '#e4cc82'); }
+                    updateHUD();
+                }
+                break;
+            }
+        }
+    }
+    // Enemy reaches bottom → lose nothing (just respawns), can extend to damage if desired
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        if (enemies[i].y > 510) enemies.splice(i, 1);
+    }
+}
+
+// ─── QUIZ (reload bullets) ────────────────────────────────────────────────────
+function startQuiz() {
+    gameRunning = false;
+    cancelAnimationFrame(animFrame);
+    quizPool = shuffle([...ALL_QUESTIONS]).slice(0, 10);
+    quizIndex = 0; quizCorrect = 0; quizAnswered = false;
+    document.getElementById('quizOverlay').classList.add('visible');
+    showQuizQuestion();
+}
+
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function showQuizQuestion() {
+    if (quizIndex >= quizPool.length) { endQuiz(); return; }
+    const q = quizPool[quizIndex];
+    document.getElementById('quiz-progress').textContent = `السؤال ${quizIndex + 1} / ${quizPool.length}`;
+    document.getElementById('quiz-sentence').textContent = q.sentence;
+    document.getElementById('quiz-question').textContent = q.question;
+    document.getElementById('quiz-result-msg').textContent = '';
+    quizAnswered = false;
+
+    const optsEl = document.getElementById('quiz-options');
+    optsEl.innerHTML = '';
+
+    let opts = [], correctLabel = '';
+
+    if (q.type === 'multiple_choice') {
+        opts = q.options.map((o, i) => ({ label: o, correct: i === q.correct }));
+        correctLabel = q.options[q.correct];
+    } else if (q.type === 'identify_elements') {
+        opts = q.elements.map((o, i) => ({ label: o, correct: i === q.correct }));
+        correctLabel = q.elements[q.correct];
+    } else {
+        // correct_sentence — show 3 distractors + correct answer
+        opts = [
+            { label: q.correct_answer, correct: true },
+            { label: q.sentence, correct: false },
+            { label: INCORRECT[Math.floor(Math.random() * INCORRECT.length)], correct: false },
+            { label: CORRECT[Math.floor(Math.random() * CORRECT.length)],   correct: false }
+        ];
+        opts = shuffle(opts).slice(0, 4);
+        correctLabel = q.correct_answer;
+    }
+
+    shuffle(opts).forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'quiz-opt';
+        btn.textContent = opt.label;
+        btn.onclick = () => answerQuiz(btn, opt.correct, optsEl);
+        optsEl.appendChild(btn);
+    });
+}
+
+function answerQuiz(btn, correct, optsEl) {
+    if (quizAnswered) return;
+    quizAnswered = true;
+
+    [...optsEl.children].forEach(b => {
+        b.style.pointerEvents = 'none';
+        if (b === btn) b.classList.add(correct ? 'correct' : 'wrong');
+    });
+
+    if (correct) {
+        quizCorrect++;
+        document.getElementById('quiz-result-msg').textContent = '✓ صحيح!';
+    } else {
+        document.getElementById('quiz-result-msg').textContent = '✗ خطأ';
+    }
+
+    quizIndex++;
+    setTimeout(() => {
+        document.getElementById('quiz-result-msg').textContent = '';
+        showQuizQuestion();
+    }, 900);
+}
+
+function endQuiz() {
+    document.getElementById('quizOverlay').classList.remove('visible');
+    bullets = quizCorrect;
+    updateHUD();
+    showNotif(`✦ ${quizCorrect}/10 رصاصات استرددتها`, quizCorrect >= 5 ? '#80e8a8' : '#f4a0a8');
+    // Don't count quiz time toward acceleration
+    gameStartTime = Date.now() - (timeMult - 1.0) / 0.012 * 1000;
+    gameRunning = true;
+    gameLoop();
+}
+
+// ─── DRAW scene (idle & in-game) ──────────────────────────────────────────────
+function drawScene() {
+    drawBg();
+    if (mode === 'collect') {
+        sentences.forEach(drawSentence);
+    } else {
+        enemies.forEach(drawEnemy);
+        projectiles.forEach(drawProjectile);
+    }
+    drawShip(playerX, playerY, 0);
+}
+
+// ─── MAIN LOOP ────────────────────────────────────────────────────────────────
+function gameLoop() {
+    if (!gameRunning) return;
+
+    // ── Time-based acceleration (Subway Surfers style) ──────────────────────
+    const elapsed = (Date.now() - gameStartTime) / 1000; // seconds
+    timeMult = 1.0 + elapsed * 0.012; // +1.2% per second, so 2× speed at ~83s
+    timeMult = Math.min(timeMult, 3.0); // cap at 3×
+
+    const spd = 4.5 * shipSpeedMult;
+    if ((keys['ArrowLeft']  || keys['a'] || keys['A']) && playerX > 28)  playerX -= spd;
+    if ((keys['ArrowRight'] || keys['d'] || keys['D']) && playerX < 772) playerX += spd;
+    if ((keys['ArrowUp']    || keys['w'] || keys['W']) && playerY > 46)  playerY -= spd;
+    if ((keys['ArrowDown']  || keys['s'] || keys['S']) && playerY < 462) playerY += spd;
+
+    if (mode === 'collect') {
+        if (Math.random() < 0.016 * timeMult) spawnSentence();
+        sentences = sentences.filter(s => s.y < 520);
+        sentences.forEach(s => s.y += s.speed * blockSpeedMult * timeMult);
+        checkCollectCollisions();
+    } else {
+        // Shooter
+        const eRate = Math.max(0.008, 0.022 - gameLevel * 0.001) * timeMult;
+        if (Math.random() < eRate) spawnEnemy();
+        enemies.forEach(e => {
+            e.y += e.speed * blockSpeedMult * timeMult;
+            e.wobble += e.wobbleSpeed;
+            e.x += Math.sin(e.wobble) * 0.8;
+        });
+        projectiles = projectiles.filter(p => p.y > -10);
+        projectiles.forEach(p => p.y -= p.speed);
+        checkShooterCollisions();
+    }
+
+    drawScene();
+    animFrame = requestAnimationFrame(gameLoop);
+}
+
+// ─── START / END ──────────────────────────────────────────────────────────────
+function startGame() {
+    score = 0; lives = 3; gameLevel = 1; bullets = 10;
+    playerX = 390; playerY = 400;
+    sentences = []; enemies = []; projectiles = [];
+    sentenceSpeed = 1.8;
+    timeMult = 1.0;
+    gameStartTime = Date.now();
+    gameRunning = true;
+    document.getElementById('overlay').style.display = 'none';
+    genStars();
+    updateHUD();
+    gameLoop();
+}
+
+function endGame() {
+    gameRunning = false;
+    cancelAnimationFrame(animFrame);
+    showOverlay('انتهت اللعبة', `النقاط النهائية: ${score}`);
+    document.getElementById('startBtn').textContent = '🔄 العب مجدداً';
+}
+
+function showOverlay(title, msg) {
+    document.getElementById('overlay-title').textContent = title;
+    document.getElementById('overlay-msg').innerHTML = msg;
+    document.getElementById('overlay').style.display = 'flex';
+}
+
+// ─── Reveal toggle ────────────────────────────────────────────────────────────
+function toggleReveal() {
+    revealMode = !revealMode;
+    document.getElementById('revealToggle').classList.toggle('active', revealMode);
+}
+
+// ─── Keys ─────────────────────────────────────────────────────────────────────
+let lastShoot = 0;
+document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (gameRunning && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+    if (gameRunning && mode === 'shooter' && e.key === ' ') {
+        e.preventDefault();
+        const now = Date.now();
+        if (now - lastShoot > 220) { lastShoot = now; shoot(); }
+    }
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+genStars();
+drawScene();
+</script>
+{% endblock %}

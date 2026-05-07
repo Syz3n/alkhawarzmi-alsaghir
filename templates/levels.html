@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}المستويات{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>اختر مستوى</h2>
+    <p class="subtitle">نقاطك الحالية: {{ score }}</p>
+</div>
+
+<div class="levels-grid">
+    {% for level in [1, 2, 3] %}
+    <div class="level-card {% if level > levels_unlocked %}locked{% endif %}">
+        <div class="level-num">{{ level }}</div>
+        <h3>
+            {% if level == 1 %}المبتدأ والفاعل
+            {% elif level == 2 %}الأفعال الناقصة
+            {% else %}الأساليب المتقدمة{% endif %}
+        </h3>
+        <p class="level-desc">
+            {% if level == 1 %}المبتدأ والخبر، الفاعل والمفعول به، أنواع الجمل
+            {% elif level == 2 %}كان وأخواتها، إن وأخواتها، المفعول المطلق
+            {% else %}القسم، التعجب، النداء، الأسماء الموصولة{% endif %}
+        </p>
+        {% if level > levels_unlocked %}
+            <span class="badge-locked">🔒 مقفل</span>
+        {% else %}
+            <a href="{{ url_for('start_level', level=level) }}" class="btn btn-primary">ابدأ</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<div class="text-center mt-3">
+    <a href="{{ url_for('index') }}" class="btn btn-outline btn-sm">← الرئيسية</a>
+</div>
+{% endblock %}
