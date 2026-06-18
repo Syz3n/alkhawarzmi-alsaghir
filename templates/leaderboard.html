@@ -7,16 +7,6 @@
     <p class="subtitle">أفضل اللاعبين في النحو العربي</p>
 </div>
 
-{% if score > 0 %}
-<div class="submit-score-box">
-    <p>نقاطك الحالية: <strong>{{ score }}</strong> — أضف اسمك للوحة</p>
-    <form action="{{ url_for('leaderboard_submit') }}" method="POST" class="submit-score-form">
-        <input type="text" name="name" placeholder="اكتب اسمك هنا..." required maxlength="30" dir="rtl" class="text-input">
-        <button type="submit" class="btn btn-primary">إضافة</button>
-    </form>
-</div>
-{% endif %}
-
 {% if leaders %}
 <div class="leaderboard-table-wrap">
     <table class="leaderboard-table">
@@ -30,7 +20,7 @@
         </thead>
         <tbody>
             {% for i, leader in enumerate(leaders) %}
-            <tr>
+            <tr class="{% if leader.name == player_name %}highlight-row{% endif %}">
                 <td>{% if i == 0 %}🥇{% elif i == 1 %}🥈{% elif i == 2 %}🥉{% else %}{{ i + 1 }}{% endif %}</td>
                 <td>{{ leader.name }}</td>
                 <td><strong>{{ leader.score }}</strong></td>
@@ -41,7 +31,7 @@
     </table>
 </div>
 {% else %}
-<p style="text-align:center; color:var(--muted); padding:40px 0;">لا يوجد لاعبون بعد. العب وأضف اسمك!</p>
+<p style="text-align:center; color:var(--muted); padding:40px 0;">لا يوجد لاعبون بعد. العب وحقق نقاطاً!</p>
 {% endif %}
 
 <div class="text-center mt-3">
