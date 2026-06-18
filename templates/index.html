@@ -7,10 +7,23 @@
     <h1 class="hero-title">الخوارزمي <em>الصغير</em></h1>
     <p class="hero-sub">تعلّم قواعد اللغة العربية من خلال الألعاب التفاعلية</p>
 
-    <div class="hero-actions">
-        <a href="{{ url_for('levels') }}" class="btn btn-primary btn-large">ابدأ المستويات</a>
-        <a href="{{ url_for('space') }}" class="btn btn-gold btn-large">لعبة الفضاء</a>
-        <a href="{{ url_for('leaderboard') }}" class="btn btn-outline btn-large">المتصدرون</a>
+    <div class="name-entry-box">
+        {% if player_name %}
+        <p class="name-greeting">مرحباً، <strong>{{ player_name }}</strong> 👋
+            <a href="{{ url_for('set_name') }}?clear=1" class="name-change-link">تغيير الاسم</a>
+        </p>
+        <div class="hero-actions">
+            <a href="{{ url_for('levels') }}" class="btn btn-primary btn-large">ابدأ المستويات</a>
+            <a href="{{ url_for('space') }}" class="btn btn-gold btn-large">لعبة الفضاء</a>
+            <a href="{{ url_for('leaderboard') }}" class="btn btn-outline btn-large">المتصدرون</a>
+        </div>
+        {% else %}
+        <p class="name-prompt">أدخل اسمك للبدء</p>
+        <form action="{{ url_for('set_name') }}" method="POST" class="name-form">
+            <input type="text" name="name" placeholder="اكتب اسمك هنا..." required maxlength="30" dir="rtl" class="text-input name-input" autofocus>
+            <button type="submit" class="btn btn-primary btn-large">ابدأ →</button>
+        </form>
+        {% endif %}
     </div>
 
     <div class="divider-ornament">✦</div>
