@@ -32,6 +32,19 @@ def save_leaderboard(data):
     with open(LEADERBOARD_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+def save_score_for_player(name, score, level):
+    if not name or score <= 0:
+        return
+    leaders = load_leaderboard()
+    existing = next((e for e in leaders if e['name'] == name), None)
+    if existing:
+        if score > existing['score']:
+            existing['score'] = score
+            existing['level'] = level
+    else:
+        leaders.append({'name': name, 'score': score, 'level': level})
+    save_leaderboard(leaders)
+
 def init_session():
     if 'score'            not in session: session['score']            = 0
     if 'lives'            not in session: session['lives']            = 3
@@ -49,13 +62,24 @@ def get_feedback_and_clear():
 def index():
     init_session()
     return render_template('index.html',
-                           score=session['score'],
-                           lives=session['lives'],
-                           levels_unlocked=session['levels_unlocked'],
+                           player_name=session.get('player_name'),
                            feedback=get_feedback_and_clear())
+
+@app.route('/set_name', methods=['GET', 'POST'])
+def set_name():
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        if name:
+            session['player_name'] = name
+        return redirect(url_for('index'))
+    if request.args.get('clear'):
+        session.pop('player_name', None)
+    return redirect(url_for('index'))
 
 @app.route('/levels')
 def levels():
+    if not session.get('player_name'):
+        return redirect(url_for('index'))
     init_session()
     return render_template('levels.html',
                            levels_unlocked=session['levels_unlocked'],
@@ -64,6 +88,8 @@ def levels():
 
 @app.route('/start_level/<int:level>')
 def start_level(level):
+    if not session.get('player_name'):
+        return redirect(url_for('index'))
     if level > session.get('levels_unlocked', 1):
         return redirect(url_for('levels'))
     session['current_level']    = level
@@ -73,6 +99,8 @@ def start_level(level):
 
 @app.route('/question')
 def question():
+    if not session.get('player_name'):
+        return redirect(url_for('index'))
     init_session()
     level    = session['current_level']
     q_idx    = session['current_question']
@@ -114,6 +142,7 @@ def answer():
                                'message': 'إجابة خاطئة! قلب واحد مفقود',
                                'explanation': q['explanation']}
         if session['lives'] <= 0:
+            save_score_for_player(session.get('player_name'), session.get('score', 0), level)
             return redirect(url_for('game_over'))
     session['current_question'] = q_idx + 1
     return redirect(url_for('question'))
@@ -124,6 +153,7 @@ def level_complete():
     score = session.get('score', 0)
     if level >= session.get('levels_unlocked', 1):
         session['levels_unlocked'] = min(level + 1, 3)
+    save_score_for_player(session.get('player_name'), score, level)
     return render_template('level_complete.html', level=level, score=score, has_next=(level < 3))
 
 @app.route('/game_over')
@@ -138,24 +168,18 @@ def game_over():
 def leaderboard():
     init_session()
     leaders = sorted(load_leaderboard(), key=lambda x: x['score'], reverse=True)
-    return render_template('leaderboard.html', leaders=leaders, score=session['score'])
+    return render_template('leaderboard.html',
+                           leaders=leaders,
+                           player_name=session.get('player_name'))
 
 @app.route('/leaderboard/submit', methods=['POST'])
 def leaderboard_submit():
     name  = request.form.get('name', '').strip()
-    score = session.get('score', 0)
-    if not name or score <= 0:
-        return redirect(url_for('leaderboard'))
-    leaders = load_leaderboard()
-    existing = next((e for e in leaders if e['name'] == name), None)
-    if existing:
-        if score > existing['score']:
-            existing['score'] = score
-            existing['level'] = session.get('current_level', 1)
-    else:
-        leaders.append({'name': name, 'score': score, 'level': session.get('current_level', 1)})
-    save_leaderboard(leaders)
-    return redirect(url_for('leaderboard'))
+    score = int(request.form.get('score', 0))
+    level = int(request.form.get('level', 1))
+    if name and score > 0:
+        save_score_for_player(name, score, level)
+    return jsonify({'ok': True})
 
 @app.route('/space')
 def space():
@@ -163,11 +187,15 @@ def space():
     return render_template('space.html',
                            correct_sentences=json.dumps(CORRECT_SENTENCES, ensure_ascii=False),
                            incorrect_sentences=json.dumps(INCORRECT_SENTENCES, ensure_ascii=False),
-                           all_questions=json.dumps(all_qs, ensure_ascii=False))
+                           all_questions=json.dumps(all_qs, ensure_ascii=False),
+                           player_name=session.get('player_name', ''))
 
 @app.route('/reset')
 def reset():
+    name = session.get('player_name')
     session.clear()
+    if name:
+        session['player_name'] = name
     return redirect(url_for('index'))
 
 @app.route('/cheat/<int:level>')
@@ -176,7 +204,10 @@ def cheat(level):
         session['levels_unlocked'] = max(session.get('levels_unlocked', 1), level)
         return jsonify({'ok': True})
     if level == 0:
+        name = session.get('player_name')
         session.clear()
+        if name:
+            session['player_name'] = name
         return jsonify({'ok': True})
     return jsonify({'ok': False})
 
