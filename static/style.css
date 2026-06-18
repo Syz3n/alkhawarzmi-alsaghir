@@ -625,3 +625,41 @@ body {
 .submit-score-box strong { color: var(--green); }
 .submit-score-form { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .submit-score-form .text-input { max-width: 280px; }
+
+.name-entry-box {
+    margin-bottom: 48px;
+}
+.name-prompt {
+    font-size: 1rem;
+    color: var(--muted);
+    margin-bottom: 14px;
+}
+.name-form {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.name-input {
+    max-width: 300px;
+    font-size: 1rem;
+    text-align: center;
+}
+.name-greeting {
+    font-size: 1.1rem;
+    color: var(--text);
+    margin-bottom: 24px;
+}
+.name-greeting strong {
+    color: var(--green);
+}
+.name-change-link {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-right: 10px;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.name-change-link:hover {
+    color: var(--green);
+}
