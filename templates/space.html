@@ -95,6 +95,7 @@
 const CORRECT       = {{ correct_sentences|safe }};
 const INCORRECT     = {{ incorrect_sentences|safe }};
 const ALL_QUESTIONS = {{ all_questions|safe }};
+const PLAYER_NAME   = {{ player_name|tojson }};
 
 const canvas = document.getElementById('gameCanvas');
 const ctx    = canvas.getContext('2d');
@@ -471,7 +472,14 @@ function startGame() {
 function endGame() {
     gameRunning=false;
     cancelAnimationFrame(animFrame);
-    showOverlay('انتهت اللعبة','النقاط النهائية: '+score);
+    if (PLAYER_NAME && score > 0) {
+        const fd = new FormData();
+        fd.append('name', PLAYER_NAME);
+        fd.append('score', score);
+        fd.append('level', gameLevel);
+        fetch('/leaderboard/submit', {method:'POST', body:fd});
+    }
+    showOverlay('انتهت اللعبة','النقاط النهائية: '+score+'<br><small style="color:#6b8575">تم حفظ نقاطك تلقائياً</small>');
     document.getElementById('startBtn').textContent='🔄 العب مجدداً';
 }
 
